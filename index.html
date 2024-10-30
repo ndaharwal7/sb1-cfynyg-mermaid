@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Diagram Visualizer</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs/editor/editor.main.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #1e40af;
+            --bg-color: #f8fafc;
+            --text-color: #1e293b;
+            --border-color: #e2e8f0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.5rem;
+            color: var(--primary-color);
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            padding: 1rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 1rem;
+        }
+
+        .control-group {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .select-wrapper {
+            position: relative;
+            min-width: 200px;
+        }
+
+        select {
+            width: 100%;
+            padding: 0.5rem 2rem 0.5rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: white;
+            appearance: none;
+            font-size: 0.875rem;
+            cursor: pointer;
+        }
+
+        .select-wrapper::after {
+            content: '▼';
+            font-size: 0.8rem;
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+        }
+
+        button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: var(--secondary-color);
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .editor-container, .preview-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 1rem;
+            min-height: 500px;
+        }
+
+        .editor-container {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #editor {
+            flex-grow: 1;
+            min-height: 450px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+
+        .preview-container {
+            overflow: auto;
+        }
+
+        #diagram {
+            width: 100%;
+            min-height: 450px;
+        }
+
+        .templates-panel {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .template-buttons {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+        }
+
+        .error-message {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 200px;
+        }
+
+        .loading::after {
+            content: '';
+            width: 30px;
+            height: 30px;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1><i class='bx bx-network-chart'></i> Advanced Diagram Visualizer</h1>
+            <div class="control-group">
+                <button onclick="toggleTheme()">
+                    <i class='bx bx-palette'></i> Toggle Theme
+                </button>
+            </div>
+        </header>
+
+        <div class="toolbar">
+            <div class="control-group">
+                <div class="select-wrapper">
+                    <select id="diagramType" onchange="changeDiagramType()">
+                        <option value="flowchart">Flowchart</option>
+                        <option value="sequence">Sequence Diagram</option>
+                        <option value="classDiagram">Class Diagram</option>
+                        <option value="stateDiagram">State Diagram</option>
+                        <option value="erDiagram">ER Diagram</option>
+                        <option value="gantt">Gantt Chart</option>
+                        <option value="pie">Pie Chart</option>
+                        <option value="gitGraph">Git Graph</option>
+                    </select>
+                </div>
+            </div>
+            <div class="control-group">
+                <div class="select-wrapper">
+                    <select id="theme" onchange="updateTheme()">
+                        <option value="default">Default Theme</option>
+                        <option value="forest">Forest</option>
+                        <option value="dark">Dark</option>
+                        <option value="neutral">Neutral</option>
+                    </select>
+                </div>
+            </div>
+            <button onclick="renderDiagram()">
+                <i class='bx bx-play'></i> Render
+            </button>
+            <button onclick="downloadSVG()">
+                <i class='bx bx-download'></i> Download SVG
+            </button>
+        </div>
+
+        <div class="templates-panel">
+            <h3>Quick Templates</h3>
+            <div class="template-buttons">
+                <button onclick="loadTemplate('travel')">Travel Flowchart</button>
+                <button onclick="loadTemplate('development')">Development Process</button>
+                <button onclick="loadTemplate('architecture')">System Architecture</button>
+                <button onclick="loadTemplate('userFlow')">User Flow</button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="editor-container">
+                <div id="editor"></div>
+                <div class="error-message" id="errorMessage"></div>
+            </div>
+            <div class="preview-container">
+                <div id="diagram"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs/loader.js"></script>
+    <script>
+        // Monaco Editor Setup
+        require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs' }});
+        require(['vs/editor/editor.main'], function() {
+            window.editor = monaco.editor.create(document.getElementById('editor'), {
+                value: getDefaultDiagram(),
+                language: 'markdown',
+                theme: 'vs',
+                minimap: { enabled: false },
+                automaticLayout: true
+            });
+        });
+
+        // Mermaid Configuration
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            securityLevel: 'loose'
+        });
+
+        // Diagram Templates
+        const templates = {
+            travel: `graph LR
+    A[Travel] --> B[Adventure]
+    A --> C[Exploration]
+    A --> D[Culture]
+    A --> E[Destination]
+    A --> F[Journey]`,
+            development: `gitGraph
+    commit id: "1"
+    commit id: "2"
+    branch develop
+    checkout develop
+    commit id: "3"
+    commit id: "4"
+    checkout main
+    merge develop
+    commit id: "5"`,
+            architecture: `classDiagram
+    class User {
+        +String username
+        +String email
+        +login()
+        +logout()
+    }
+    class System {
+        +validate()
+        +process()
+    }
+    User --> System`,
+            userFlow: `stateDiagram-v2
+    [*] --> Login
+    Login --> Dashboard
+    Dashboard --> Profile
+    Dashboard --> Settings
+    Settings --> Dashboard
+    Profile --> Dashboard
+    Dashboard --> [*]`
+        };
+
+        // Diagram Type Templates
+        const diagramTemplates = {
+            flowchart: `graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Process 1]
+    B -->|No| D[Process 2]
+    C --> E[End]
+    D --> E`,
+            sequence: `sequenceDiagram
+    participant User
+    participant System
+    User->>System: Request
+    System->>User: Response`,
+            classDiagram: `classDiagram
+    class Animal {
+        +String name
+        +makeSound()
+    }
+    class Dog {
+        +bark()
+    }
+    Animal <|-- Dog`,
+            stateDiagram: `stateDiagram-v2
+    [*] --> Still
+    Still --> Moving
+    Moving --> Still
+    Moving --> Crash
+    Crash --> [*]`,
+            erDiagram: `erDiagram
+    CUSTOMER ||--o{ ORDER : places
+    ORDER ||--|{ LINE-ITEM : contains`,
+            gantt: `gantt
+    title Project Timeline
+    section Phase 1
+    Task 1: 2024-01-01, 30d
+    Task 2: 2024-02-01, 20d`,
+            pie: `pie
+    title Distribution
+    "A" : 40
+    "B" : 30
+    "C" : 30`,
+            gitGraph: `gitGraph
+    commit
+    branch develop
+    checkout develop
+    commit
+    checkout main
+    merge develop`
+        };
+
+        // Functions
+        function getDefaultDiagram() {
+            return diagramTemplates.flowchart;
+        }
+
+        function changeDiagramType() {
+            const type = document.getElementById('diagramType').value;
+            editor.setValue(diagramTemplates[type]);
+            renderDiagram();
+        }
+
+        function renderDiagram() {
+            const diagramDiv = document.getElementById('diagram');
+            const errorDiv = document.getElementById('errorMessage');
+            const code = editor.getValue();
+
+            diagramDiv.innerHTML = `<pre class="mermaid">${code}</pre>`;
+            errorDiv.style.display = 'none';
+
+            try {
+                mermaid.init(undefined, '.mermaid');
+            } catch (error) {
+                errorDiv.textContent = `Error: ${error.message}`;
+                errorDiv.style.display = 'block';
+            }
+        }
+
+        function updateTheme() {
+            const theme = document.getElementById('theme').value;
+            mermaid.initialize({
+                startOnLoad: true,
+                theme: theme
+            });
+            renderDiagram();
+        }
+
+        function toggleTheme() {
+            const currentTheme = editor.getTheme();
+            editor.setTheme(currentTheme === 'vs' ? 'vs-dark' : 'vs');
+        }
+
+        function loadTemplate(templateName) {
+            editor.setValue(templates[templateName]);
+            renderDiagram();
+        }
+
+        function downloadSVG() {
+            const svgElement = document.querySelector('#diagram svg');
+            if (svgElement) {
+                const svgData = new XMLSerializer().serializeToString(svgElement);
+                const blob = new Blob([svgData], { type: 'image/svg+xml' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'diagram.svg';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }
+        }
+
+        // Initialize
+        window.onload = function() {
+            setTimeout(renderDiagram, 1000); // Allow Monaco editor to initialize
+        };
+    </script>
+</body>
+</html>
